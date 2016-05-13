@@ -74,6 +74,8 @@ module Paranoia
 
   def destroy
     transaction do
+      # Ensure the deleted at date for this object comes before it's associations
+      @delete_at = current_time_from_proper_timezone
       run_callbacks(:destroy) do
         result = delete
         next result unless result && ActiveRecord::VERSION::STRING >= '4.2'
@@ -159,7 +161,7 @@ module Paranoia
 
   def paranoia_destroy_attributes
     {
-      paranoia_column => current_time_from_proper_timezone
+      paranoia_column => @delete_at || current_time_from_proper_timezone
     }
   end
 
@@ -176,9 +178,9 @@ module Paranoia
       unless association_data.nil?
         if association_data.paranoid?
           if association.collection?
-            association_data.only_deleted.each { |record| record.restore(:recursive => true) }
+            association_data.only_deleted.where("#{paranoia_column} >= ?", deleted_at_was).each { |record| record.restore(:recursive => true) }
           else
-            association_data.restore(:recursive => true)
+            association_data.restore(:recursive => true) if association_data.deleted_at > deleted_at_was
           end
         end
       end
@@ -196,7 +198,7 @@ module Paranoia
 
         association_class = association_class_name.constantize
         if association_class.paranoid?
-          association_class.only_deleted.where(association_find_conditions).first.try!(:restore, recursive: true)
+          association_class.only_deleted.where(association_find_conditions).where("#{paranoia_column} >= ?", deleted_at_was).first.try!(:restore, recursive: true)
         end
       end
     end
