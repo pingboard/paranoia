@@ -180,7 +180,7 @@ module Paranoia
           if association.collection?
             association_data.only_deleted.where("#{paranoia_column} >= ?", deleted_at_was).each { |record| record.restore(:recursive => true) }
           else
-            association_data.restore(:recursive => true) if association_data.deleted_at > deleted_at_was
+            association_data.restore(:recursive => true) if association_data.deleted_at && association_data.deleted_at > deleted_at_was
           end
         end
       end
